@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documented — verifier sub-call resource budget bounds & simulation ordering (#101)
+
+- Documented in [docs/VERIFIER_DESIGN.md](docs/VERIFIER_DESIGN.md) and
+  [contracts/keeper-registry/src/lib.rs](contracts/keeper-registry/src/lib.rs)
+  that the calling keeper bears the full gas/resource cost of whatever verifier
+  the task owner attaches.
+- Confirmed that Soroban host does not provide any in-band mechanism to bound
+  or sub-allocate resource budgets to cross-contract sub-calls.
+- Analyzed simulation ordering: because `execute_task` requires a `Claimed`
+  status precondition, bots cannot simulate `execute_task` directly pre-claim;
+  they should instead simulate the verifier's `verify(task_id, keeper, proof)`
+  directly or reference benchmark baselines to estimate costs prior to claiming.
+- Formalized requirements handoff to issue #0091 (bot-side task selection &
+  profitability evaluation).
+
 ### Added — bounded batch task reads (#25)
 
 - New read-only views `get_tasks(ids)` and `get_tasks_range(from, count)` let

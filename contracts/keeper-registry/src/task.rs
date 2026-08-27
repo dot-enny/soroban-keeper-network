@@ -203,6 +203,13 @@ impl KeeperRegistry {
     // if a keeper submitting garbage can be identified after the fact. Its
     // size is bounded by `MAX_PROOF_LEN` since event data is charged against
     // the paying keeper's transaction resource budget.
+    //
+    // Verifier resource cost note: When an `IKeeperVerifier` is attached to
+    // a task (Phase 2), the calling keeper pays for the full gas/resource cost
+    // of the verifier sub-call. Soroban does not support caller-side sub-call
+    // budget caps; keepers should simulate the verifier (`verify`) pre-claim
+    // to estimate resource cost before committing to a claim (see
+    // `docs/VERIFIER_DESIGN.md` §3).
 
     pub fn execute_task(
         e: Env,

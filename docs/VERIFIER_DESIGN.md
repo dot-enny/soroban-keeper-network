@@ -83,32 +83,110 @@ path immediately, rather than only the slowest one.
 
 ## 3. Resource budget
 
-**No documented budget ceiling is reserved for the verifier call; the
-whole transaction's resource footprint (set by whoever submits it) is
-the only limit.**
+**No in-contract budget ceiling can be reserved or enforced for the verifier
+sub-call; the whole transaction's resource footprint (set by whoever submits it)
+is the only limit. The calling keeper bears the full resource cost of the
+attached verifier.**
 
-Soroban does not give a contract an in-band way to sub-allocate a
-resource budget to a specific cross-contract call and enforce it — the
-`Budget` type in `soroban-sdk`'s `testutils` is a test-only
-measurement/reset tool, not a runtime limiting mechanism a contract can
-invoke against a callee. The actual ceiling on a cross-contract call's
-CPU/memory cost is the calling transaction's own resource footprint,
-declared by whoever submits it (a keeper bot, in this case) before
-simulation/submission.
+### 3.1 Investigation: In-band sub-call budget capping in Soroban
 
-Practically, this means: a keeper choosing to execute a task with an
-expensive verifier attached pays for that cost in their own transaction's
-resource footprint, and an excessively expensive verifier simply makes the
-transaction fail at the network's resource-limit boundary (the same
-failure mode as any other transaction that tries to do too much) — not a
-distinct, registry-specific error. `docs/FUZZING.md`'s target-status table
-and this repo's keeper-bot example (`examples/keeper-bot`) should document
-the practical implication: a keeper bot integrating with a
-verifier-gated task should simulate the transaction first (standard
-Soroban RPC `simulateTransaction`) to estimate the real cost before
-committing to a fee, exactly as it should for any other execution — this
-isn't a new burden E04 introduces, just one that becomes newly relevant
-once a verifier call is in the path.
+We investigated whether Soroban currently exposes any host function, SDK
+primitive, or transaction mechanism allowing a caller contract to bound or
+cap the gas/CPU/memory/storage resources consumed by an individual cross-contract
+sub-call (distinct from the transaction's overall resource limit).
+
+**Conclusion: No such mechanism exists in Soroban today.**
+
+*Evidence & Technical Constraints:*
+1. **Host invocation model:** In Soroban, cross-contract calls dispatched via
+   `Env::invoke_contract` or `Env::try_invoke_contract` execute synchronously within
+   the host environment sharing the active transaction's monolithic execution
+   budget (`Budget`). The host meters instruction counters and memory allocations
+   globally against the transaction envelope.
+2. **SDK Budget types:** The `soroban_sdk::Env::cost_estimate().budget()` and
+   `Budget` interfaces exist exclusively under `testutils` for local measurement
+   and harness assertions. They are not compiled into the on-chain WASM guest
+   environment and provide no runtime controls to meter or restrict callees.
+3. **No gas/stipend forwarding parameter:** Unlike Ethereum's EVM (which allows
+   passing explicit gas stipends to sub-calls, e.g. `call{gas: g}()`), Soroban's
+   host invocation interface does not take a gas limit parameter.
+4. **All-or-nothing resource metering:** If a verifier's execution exceeds the
+   transaction's configured resource limits or ledger network limits, the entire
+   host invocation runs out of budget, resulting in a transaction-level failure.
+
+### 3.2 Economic impact: Who bears the cost?
+
+Because the verifier sub-call executes as part of `execute_task`, **the executing
+keeper bears the entire transaction fee and resource cost** incurred by running
+whatever verifier contract the task owner attached.
+
+An expensive or intentionally resource-intensive verifier directly increases the
+CPU instructions and memory footprint charged to the keeper's execution
+transaction. If uninspected, this cost can easily exceed the task reward, turning
+a seemingly profitable task into a net financial loss for the keeper.
+
+### 3.3 Keeper bot cost estimation & Simulation ordering (Pre-claim vs. Post-claim)
+
+To make an informed profitability decision, a keeper bot must be able to estimate
+the execution resource footprint **before claiming** a task.
+
+#### Simulation via `simulateTransaction`
+Soroban RPC's `simulateTransaction` endpoint evaluates a contract invocation
+against current ledger state and returns exact estimated resource usage
+(`minResourceFee`, `cpuInsns`, `memBytes`, and read/write footprints).
+
+#### Impact of `Claimed` status precondition
+In `KeeperRegistry::execute_task`, there is a strict state precondition:
+```rust
+if task.status != TaskStatus::Claimed {
+    return Err(KeeperError::InvalidTaskStatus);
+}
+if task.claimer.as_ref() != Some(&keeper) {
+    return Err(KeeperError::NotTaskClaimer);
+}
+```
+If a bot attempts to simulate `execute_task` directly against a `Pending` (unclaimed)
+task on-chain, `execute_task` will abort early with `KeeperError::InvalidTaskStatus`
+before reaching the verifier invocation.
+
+#### Recommended Keeper-Bot Strategy:
+1. **Direct Verifier Simulation (Pre-claim estimation):**
+   Before committing to `claim_task`, the keeper bot knows:
+   - `task_id`
+   - its own `keeper` address
+   - the candidate `proof`
+   - the attached `verifier` address (retrieved via `get_task`)
+   
+   If `task.verifier` is `Some(verifier_address)`, the bot can issue a
+   `simulateTransaction` call directly to `IKeeperVerifier::verify(task_id, keeper, proof)`
+   on the verifier contract. This yields the verifier's isolated resource
+   consumption before the bot spends any transaction fees claiming the task.
+2. **Known Verifier Baselines / Catalog:**
+   For standard reference verifiers (e.g. signature verification, oracle checks),
+   the bot can refer to benchmarked gas deltas (documented in `docs/VERIFIERS.md`)
+   to compute an immediate heuristic cost without an extra simulation round-trip.
+3. **Post-Claim Verification:**
+   After claiming the task (which locks the verifier against further changes per §4),
+   the bot can simulate the full `execute_task` transaction to finalize the fee
+   bid before broadcast.
+
+### 3.4 Requirements Handoff to Issue 0091 (Keeper-Bot Task Selection)
+
+Issue 0091 (bot-side task selection and profitability checking) must implement the
+following requirements based on these findings:
+1. **Inspect `task.verifier` on discovery:** Fetch full task info via `get_task`
+   upon receiving a `TaskRegistered` event.
+2. **Pre-claim cost estimation:** If `verifier` is present:
+   - Option A: Simulate `verifier.verify(task_id, keeper_address, proof)` via RPC
+     to get the verifier sub-call footprint.
+   - Option B: Look up the verifier address in a local allowlist/catalog of known
+     costs. If unknown and unsimulated, treat the task with high risk or skip it.
+3. **Net Profitability Calculation:**
+   Only claim the task if:
+   $$\text{Expected Reward Net} > \text{Estimated Gas}(\text{claim\_task}) + \text{Estimated Gas}(\text{execute\_task baseline} + \text{verifier}) + \text{Off-chain Compute Cost} + \text{Profit Margin}$$
+4. **Untrusted verifier policy:** If a task specifies an unknown, high-gas, or
+   failing verifier during pre-claim simulation, the bot should decline to claim
+   the task.
 
 ## 4. Attachment timing
 
@@ -169,7 +247,7 @@ task, not a new required parameter with no default.
 |---|---|
 | Interface shape | `fn verify(env, task_id, keeper, proof) -> bool` — `keeper` included to bind the proof to the specific claim |
 | Failure semantics | `execute_task` uses `try_invoke_contract`; a panicking or `false`-returning verifier both map to `KeeperError::VerificationFailed`, never a transaction-wide revert |
-| Resource budget | No in-contract ceiling reserved; the calling transaction's own resource footprint is the only limit — keeper bots should simulate first |
+| Resource budget | No in-contract sub-call cap is technically possible on Soroban today; calling keeper bears full verifier cost — keeper bots must simulate verifier pre-claim (handoff to 0091) |
 | Attachment timing | Chosen at `register_task`, owner-changeable while `Pending`, immutable once claimed |
 | Trust model | Permissionless — any address may be a verifier; an admin allow-list is an optional, separate extension (0092), not baseline |
 | Backward compatibility | `Task.verifier: Option<Address>`, `None` behaves identically to today, zero-cost when absent |

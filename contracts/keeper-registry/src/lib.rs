@@ -25,6 +25,15 @@
 //! Roadmap): on-chain execution verifiers, batch registration, keeper
 //! staking/reputation, and an events indexer. See CONTRIBUTING.md.
 //!
+//! ## Verifier Execution & Resource Costs (Phase 2 / E04)
+//! In Phase 2, tasks may optionally attach an on-chain verifier contract
+//! (`IKeeperVerifier`). In Soroban, sub-contract calls run synchronously
+//! against the caller's transaction budget, with no in-band mechanism to cap
+//! sub-call resource consumption. The executing keeper bears the entire
+//! transaction gas/resource cost of the attached verifier. Keepers and keeper
+//! bots must inspect and simulate verifier calls (`verify`) prior to claiming
+//! to ensure net profitability. See `docs/VERIFIER_DESIGN.md` §3.
+//!
 //! ## Storage Layout
 //! - Instance:   Admin, FeeBps, Paused, TaskCounter, RewardToken, FeesAccrued
 //! - Persistent: Task(id) → Task struct, KeeperReward(address) → i128
