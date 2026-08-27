@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — verifier event emission (#118)
+
+- Added event emission helper functions and event specifications for task verifier lifecycle:
+  1. `emit_verifier_attached(&Env, task_id, verifier)` with topic `("vattach", "task")` and data `(task_id: u64, verifier: Address)` emitted on task registration when an optional verifier is attached, preserving the backwards-compatible 4-tuple schema of `TaskRegistered`.
+  2. `emit_verifier_updated(&Env, task_id, old_verifier, new_verifier)` with topic `("vupdate", "task")` and data `(task_id: u64, old_verifier: Option<Address>, new_verifier: Option<Address>)` matching the standard `(old, new)` before/after update pattern.
+  3. `emit_task_verification_failed(&Env, task_id, keeper)` with topic `("verfail", "task")` and data `(task_id: u64, keeper: Address)`.
+- Updated `README.md` events table and added unit tests in `test/events.rs`.
+
 ### Added — bounded batch task reads (#25)
 
 - New read-only views `get_tasks(ids)` and `get_tasks_range(from, count)` let
