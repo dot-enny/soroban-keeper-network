@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — keeper-bot verifier capability and profitability checks (#116)
+
+- Keeper bot now checks tasks before claiming to ensure:
+  1. A proof-generation strategy exists for the task's attached verifier kind/contract (via `VERIFIER_STRATEGIES` or `checkVerifierSupport`), skipping unsupported verifiers rather than attempting and failing.
+  2. The task satisfies the profitability margin configured via `MIN_PROFIT_MARGIN_STROOPS`, factoring in claim fee, execute fee, and verifier resource fee (estimated or simulated via `IKeeperVerifier::verify`).
+- Tasks skipped due to unsupported verifiers or unprofitability are logged with explicit rationale so operators can differentiate between lack of tasks and unserviceable/unprofitable verifiers.
+
 ### Added — bounded batch task reads (#25)
 
 - New read-only views `get_tasks(ids)` and `get_tasks_range(from, count)` let
