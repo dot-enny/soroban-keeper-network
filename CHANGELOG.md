@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documented — permissionless verifiers with advisory curated registry (#117)
+
+- Documented architectural decision in `docs/VERIFIER_DESIGN.md` addressing the tension between permissionless verifier attachment and keeper griefing protection.
+- Decided on fully permissionless verifier attachment at the core contract level (no admin allow-list gating `register_task` or `execute_task`), with an advisory on-chain admin-curated vetted verifier list for keeper bots and dApp UIs to query as a trust signal.
+- Scoped follow-up implementation issue for the advisory vetted verifier registry views and admin mutation methods.
+
 ### Added — keeper-bot verifier capability and profitability checks (#116)
 
 - Keeper bot now checks tasks before claiming to ensure:

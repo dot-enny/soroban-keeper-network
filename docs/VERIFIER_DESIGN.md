@@ -128,25 +128,45 @@ allowing changes pre-claim keeps it consistent with every other
 owner-adjustable field on a `Pending` task (`increase_reward`,
 `extend_deadline` already work this way).
 
-## 5. Trust model
+## 5. Trust model: Permissionless vs. Admin-Curated Verifiers (#117)
 
-**Permissionless: any address may be used as a verifier, consistent with
-the registry's existing trust model** (keepers are permissionless;
-correctness is enforced by contract logic, not a whitelist — see
-`docs/ARCHITECTURE.md`'s Trust model section).
+### 5.1 The Tension
 
-A registry-level admin-curated allow-list (630's fork, tracked separately
-as issue 0092) is explicitly *not* part of this baseline design — adding
-one is a strictly separate, optional extension an operator could layer on
-top (e.g. a wrapper contract that only forwards to allow-listed
-verifiers), not a change to `IKeeperVerifier` or `execute_task` itself.
-Baking an allow-list into the core registry would mean every dApp using
-the registry inherits whichever admin's curation policy, which cuts
-against the "admin can never gate ordinary task/keeper activity" property
-I-5 already establishes for fee sweeping — extending that same principle,
-an admin should not get to gate *which verifiers are usable* either,
-without an explicit, separately-designed extension opting into that
-tradeoff.
+The registry must balance two competing architectural forces regarding verifier addresses:
+
+1. **Permissionless Participation (Protocol Philosophy)**:
+   - Consistent with task registration, keeper participation, and fee invariants (I-5 in `docs/ARCHITECTURE.md`), the registry does not gate participation. Any dApp or user can register a task with arbitrary calldata or attach custom verification logic.
+   - Enforcing an admin whitelist in the core `register_task` / `execute_task` pipeline would centralize authority, introduce governance bottlenecks for new verifier deployments, and break the core invariant that administrators cannot gate ordinary task/keeper operations.
+
+2. **Keeper Protection & DoS / Griefing Surface**:
+   - Unlike task payloads, an attached verifier executes cross-contract code on `execute_task` whose gas is paid by the claiming keeper.
+   - An unvetted or malicious verifier could consume excessive resources, revert unexpectedly, or contain logic impossible to satisfy, griefing claiming keepers (wasting keeper claim gas or locking keeper capital).
+   - Keepers and user interfaces need a dependable trust signal to differentiate between reference/audited verifiers and untrusted third-party contracts.
+
+### 5.2 The Decision: Permissionless Execution Path with Optional Advisory Curated Registry
+
+We adopt the **advisory middle ground**:
+
+1. **Core Registry is Fully Permissionless**:
+   - The core contract allows *any* address implementing `IKeeperVerifier` to be attached at `register_task`. `register_task` and `execute_task` do **not** enforce an allow-list or require admin approval.
+   - This keeps the execution hot path simple, gas-efficient, and permissionless without admin intervention or single-point-of-failure governance.
+
+2. **Advisory "Vetted Verifier" Registry (Follow-Up Extension)**:
+   - Expose an on-chain, admin-curated registry of vetted verifier addresses (either as dedicated view functions on the registry or as a companion registry contract).
+   - This list serves strictly as an **advisory trust signal** for off-chain keeper bots and dApp UIs:
+     - **Keeper Bots**: Can consult the curated list or local config to prioritize tasks with vetted verifiers while skipping or applying stricter simulation thresholds to uncurated verifiers (per issue #116).
+     - **Frontends / dApps**: Can display verification badges or warning prompts when users interact with unvetted verifiers.
+   - The on-chain execution logic in `execute_task` remains completely unblocked regardless of whether a verifier is in the curated registry.
+
+### 5.3 Follow-up Implementation Scope
+
+A dedicated follow-up issue will specify and implement the advisory vetted verifier registry:
+- **Title**: `feat(registry): implement advisory vetted verifier list and query views`
+- **Scope**:
+  - Admin functions: `add_vetted_verifier(admin, verifier_address)` and `remove_vetted_verifier(admin, verifier_address)`.
+  - Read-only query: `is_vetted_verifier(verifier_address) -> bool`.
+  - Events: `VerifierVetted(verifier, added_by)` and `VerifierUnvetted(verifier, removed_by)`.
+  - Unit tests verifying admin-only authorization and non-interference with permissionless `execute_task`.
 
 ## 6. Backward compatibility
 
@@ -171,7 +191,7 @@ task, not a new required parameter with no default.
 | Failure semantics | `execute_task` uses `try_invoke_contract`; a panicking or `false`-returning verifier both map to `KeeperError::VerificationFailed`, never a transaction-wide revert |
 | Resource budget | No in-contract ceiling reserved; the calling transaction's own resource footprint is the only limit — keeper bots should simulate first |
 | Attachment timing | Chosen at `register_task`, owner-changeable while `Pending`, immutable once claimed |
-| Trust model | Permissionless — any address may be a verifier; an admin allow-list is an optional, separate extension (0092), not baseline |
+| Trust model | Permissionless execution path (any address implementing `IKeeperVerifier` can be attached); optional on-chain advisory curated list for bot/UI trust signals (#117) |
 | Backward compatibility | `Task.verifier: Option<Address>`, `None` behaves identically to today, zero-cost when absent |
 
 ## Status
