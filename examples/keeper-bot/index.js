@@ -54,6 +54,7 @@ const {
   scValToNative,
   Contract,
 } = require("@stellar/stellar-sdk");
+const { Keypair, nativeToScVal, scValToNative } = require("@stellar/stellar-sdk");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The SDK (@soroban-keeper-network/sdk) — dynamic import, not require()
