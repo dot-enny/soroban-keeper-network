@@ -71,7 +71,9 @@ impl KeeperRegistry {
             reward,
             deadline,
             ttl_ledgers,
+            verifier: None,
             status: TaskStatus::Pending,
+
             claimer: None,
             claim_ledger: None,
             lock_ledgers,
@@ -152,7 +154,37 @@ impl KeeperRegistry {
         log!(&e, "Task {} deadline extended to {}", task_id, new_deadline);
         Ok(())
     }
+    // ── update_verifier ──────────────────────────────────────────────────────
+    //
+    // The owner sets or clears the attached verifier address before a task is
+    // claimed. Restricted strictly to `Pending` status to prevent griefing.
+
+    pub fn update_verifier(
+        e: Env,
+        owner: Address,
+        task_id: u64,
+        new_verifier: Option<Address>,
+    ) -> Result<(), KeeperError> {
+        require_not_paused(&e)?;
+        owner.require_auth();
+
+        let mut task = load_task(&e, task_id)?;
+        if task.owner != owner {
+            return Err(KeeperError::NotTaskOwner);
+        }
+        if task.status != TaskStatus::Pending {
+            return Err(KeeperError::InvalidTaskStatus);
+        }
+
+        bump_instance(&e);
+        task.verifier = new_verifier.clone();
+        save_task(&e, task_id, &task);
+
+        emit_verifier_updated(&e, task_id, &new_verifier);
+        Ok(())
+    }
     // ── claim_task ───────────────────────────────────────────────────────────
+
     //
     // Permissionless first-come-first-served claiming. A Pending task may be
     // claimed by anyone; a Claimed task may be re-claimed only after its

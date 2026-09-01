@@ -181,6 +181,35 @@ Two conventions worth following, both learned the hard way:
   not `reentrant_token`). Two PRs that each add a generically named helper
   module will compile alone and fail once both land.
 
+---
+
+## Where Contributors Come In
+
+The MVP contract is functional and stable. The open work now focuses on three
+published epics spanning 100 issues (0051–0150):
+
+- **E03 Fuzzing & Invariant Testing** (20 issues) — property-based tests,
+  stateful model checking, and mutation testing to systematically verify the
+  money-movement invariants documented in `docs/ARCHITECTURE.md`.
+- **E04 On-chain Execution Verifier** (26 issues) — the `IKeeperVerifier`
+  interface and registry-side verification callback, allowing target protocols
+  to enforce that a keeper actually performed the promised work on-chain before
+  the registry credits the reward.
+- **E05 Batch Operations & Gas** (22 issues) — batch registration (already
+  shipped), storage layout tuning, WASM size optimization, and CPU budget work.
+
+Each epic closes with a retrospective documenting what shipped versus what was
+studied and deferred. See the **epic index** in `.github/backlog/README.md`
+for the full roadmap, including wave 3 (TypeScript SDK, Rust SDK, event
+indexer, keeper bot v2) and beyond.
+
+**Picking an issue:**
+
+1. Browse `.github/backlog/issues/` or filter by label on GitHub Issues.
+2. Look for the `good-first-issue` label if this is your first contribution.
+3. Comment on the issue to claim it before starting work.
+4. Follow the [Git Workflow](#git-workflow) and [PR Requirements](#branching--pr-rules) below.
+
 ## Git Workflow
 
 We use **trunk-based development**. The `main` branch is the trunk, and it must always be stable and releasable.

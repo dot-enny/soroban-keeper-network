@@ -21,9 +21,11 @@
 //!   `fees_accrued`, `is_paused`, etc.
 //!
 //! ## Where contributors come in
-//! The MVP is functional; the open issues now target Phase 2 (see README
-//! Roadmap): on-chain execution verifiers, batch registration, keeper
-//! staking/reputation, and an events indexer. See CONTRIBUTING.md.
+//! The MVP is functional; the next 100 issues (0051–0150) are now published
+//! across three epics: **E03 Fuzzing & Invariant Testing**, **E04 On-chain
+//! Execution Verifier**, and **E05 Batch Operations & Gas**. See the epic
+//! index in `.github/backlog/README.md` for the complete roadmap, or
+//! `CONTRIBUTING.md` for branching rules and the PR checklist.
 //!
 //! ## Storage Layout
 //! - Instance:   Admin, FeeBps, Paused, TaskCounter, RewardToken, FeesAccrued

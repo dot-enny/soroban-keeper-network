@@ -116,3 +116,11 @@ pub fn emit_upgraded(e: &Env, admin: &Address, new_wasm_hash: &BytesN<32>) {
         (admin.clone(), new_wasm_hash.clone()),
     );
 }
+
+pub fn emit_verifier_updated(e: &Env, task_id: u64, verifier: &Option<Address>) {
+    e.events().publish(
+        (symbol_short!("verifier"), symbol_short!("task")),
+        (task_id, verifier.clone()),
+    );
+}
+

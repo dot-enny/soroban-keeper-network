@@ -40,18 +40,24 @@ An owner creates and funds a task. A keeper may claim an eligible task, execute 
 ## Task lifecycle
 
 ```
-                 register_task              claim_task            execute_task
-   dApp/owner ───────────────▶  PENDING ───────────────▶ CLAIMED ───────────────▶ EXECUTED
-                                   │                         │
-                       cancel_task │                         │ (deadline passes, unexecuted)
-                                   ▼                         ▼
-                               CANCELLED                  expire_task ──▶ EXPIRED
+                 register_task              claim_task            execute_task (verifier pass)
+   dApp/owner ───────────────▶  PENDING ───────────────▶ CLAIMED ───────────────────────────▶ EXECUTED
+                                   │                         │ ▲
+                       cancel_task │                         │ │ execute_task (verifier reject, retryable)
+                                   ▼              expire_task │ │ (returns to CLAIMED for retry)
+                               CANCELLED       (deadline      │ │
+                                               passes)        ▼ │
+                                                           EXPIRED│
+                                                                  └──────────────────────────┘
 ```
 
 - **PENDING** — funded and waiting. Owner may `cancel_task` (refund),
   `increase_reward` (top up), or `extend_deadline`.
 - **CLAIMED** — a keeper holds an exclusive lock for `lock_ledgers`. After the
-  window elapses, any keeper may re-claim (prevents squatting).
+  window elapses, any keeper may re-claim (prevents squatting). When a task
+  includes a verifier callback and the verifier rejects the execution, the
+  task may return to CLAIMED state for retry (retryable failure), distinct
+  from terminal failure states.
 - **EXECUTED** — the keeper submitted proof; its net reward is credited to an
   internal balance and later withdrawn.
 - **CANCELLED / EXPIRED** — terminal refund states.

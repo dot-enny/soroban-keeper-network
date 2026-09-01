@@ -740,15 +740,6 @@ async function keeperLoop(client, emptyRounds = 0) {
             nativeToScVal(task.taskId, { type: "u64" }),
           ])
         );
-        console.log(`  Task ${task.taskId} claimed!`);
-
-        // Fetch full task details — the TaskRegistered event decoded in
-        // fetchPendingTasks carries only { taskId, reward, deadline }, but
-        // an executor needs task_type and calldata to know what off-chain
-        // work to perform.
-        const fullTask = await client.read("get_task", [
-          nativeToScVal(task.taskId, { type: "u64" }),
-        ]);
         const taskType = fullTask.task_type;
         const taskTypeName = TASK_TYPE_NAMES[taskType] || `Unknown(${taskType})`;
         const verifier = fullTask.verifier || null;

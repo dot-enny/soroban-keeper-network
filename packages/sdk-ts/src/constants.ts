@@ -13,5 +13,18 @@
  * 0192) for the release-mapping rules.
  */
 
+/**
+ * Contract `VERSION` values this SDK release was built against, inclusive.
+ *
+ * `min` is the oldest deployment whose ABI this SDK still speaks; `max` is the
+ * newest it has been tested against. A deployment reporting a version outside
+ * this range is not refused -- see `client.version()`, which warns rather than
+ * throwing, because a newer contract is usually additive and an SDK that
+ * hard-fails on it strands every integrator until they can upgrade.
+ */
+export const SUPPORTED_CONTRACT_VERSIONS = {
+  min: 1,
+  max: 3,
+} as const;
 /** Maximum `proof` length in bytes accepted by `execute_task`. */
 export const MAX_PROOF_LEN = 256;

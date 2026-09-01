@@ -28,6 +28,8 @@ export type {
   SignedCallOptions,
   TransactionSigner,
 } from "./core/caller.js";
+
+export { SUPPORTED_CONTRACT_VERSIONS } from "./constants.js";
 export type { IntegerInput } from "./core/scval.js";
 export { fromUnixSeconds, toUnixSeconds, type TimestampInput } from "./core/time.js";
 
@@ -42,6 +44,23 @@ export {
   isKeeperError,
 } from "./errors.js";
 
+export {
+  admin,
+  checkContractCompatibility,
+  feesAccrued,
+  getFeeBps,
+  isPaused,
+  minReward,
+  rewardTokenAddress,
+  version,
+  type CompatibilityStatus,
+  type ContractCompatibility,
+  type VersionOptions,
+} from "./methods/views.js";
+  tryWithdrawRewards,
+  withdrawRewards,
+  type WithdrawRewardsParams,
+} from "./methods/withdrawRewards.js";
 export { extendDeadline, type ExtendDeadlineParams } from "./methods/extendDeadline.js";
 export {
   executeTask,
