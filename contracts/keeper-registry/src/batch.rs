@@ -98,7 +98,9 @@ impl KeeperRegistry {
                 reward: params.reward,
                 deadline: params.deadline,
                 ttl_ledgers: params.ttl_ledgers,
+                verifier: None,
                 status: TaskStatus::Pending,
+
                 claimer: None,
                 claim_ledger: None,
                 lock_ledgers: params.lock_ledgers,

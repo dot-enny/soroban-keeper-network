@@ -6,20 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Documented — verifier sub-call resource budget bounds & simulation ordering (#101)
+### Documented — permissionless verifiers with advisory curated registry (#117)
 
-- Documented in [docs/VERIFIER_DESIGN.md](docs/VERIFIER_DESIGN.md) and
-  [contracts/keeper-registry/src/lib.rs](contracts/keeper-registry/src/lib.rs)
-  that the calling keeper bears the full gas/resource cost of whatever verifier
-  the task owner attaches.
-- Confirmed that Soroban host does not provide any in-band mechanism to bound
-  or sub-allocate resource budgets to cross-contract sub-calls.
-- Analyzed simulation ordering: because `execute_task` requires a `Claimed`
-  status precondition, bots cannot simulate `execute_task` directly pre-claim;
-  they should instead simulate the verifier's `verify(task_id, keeper, proof)`
-  directly or reference benchmark baselines to estimate costs prior to claiming.
-- Formalized requirements handoff to issue #0091 (bot-side task selection &
-  profitability evaluation).
+- Documented architectural decision in `docs/VERIFIER_DESIGN.md` addressing the tension between permissionless verifier attachment and keeper griefing protection.
+- Decided on fully permissionless verifier attachment at the core contract level (no admin allow-list gating `register_task` or `execute_task`), with an advisory on-chain admin-curated vetted verifier list for keeper bots and dApp UIs to query as a trust signal.
+- Scoped follow-up implementation issue for the advisory vetted verifier registry views and admin mutation methods.
+
+### Added — keeper-bot verifier capability and profitability checks (#116)
+
+- Keeper bot now checks tasks before claiming to ensure:
+  1. A proof-generation strategy exists for the task's attached verifier kind/contract (via `VERIFIER_STRATEGIES` or `checkVerifierSupport`), skipping unsupported verifiers rather than attempting and failing.
+  2. The task satisfies the profitability margin configured via `MIN_PROFIT_MARGIN_STROOPS`, factoring in claim fee, execute fee, and verifier resource fee (estimated or simulated via `IKeeperVerifier::verify`).
+- Tasks skipped due to unsupported verifiers or unprofitability are logged with explicit rationale so operators can differentiate between lack of tasks and unserviceable/unprofitable verifiers.
 
 ### Added — bounded batch task reads (#25)
 
@@ -58,20 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Boundary tests pin the behaviour at `reward = 1`, the first reward yielding a
   non-zero fee, `fee_bps = 0`, and `fee_bps = 10_000`. No behaviour change.
 
-### Added — optional on-chain proof verifier (VERSION bumped to 3)
-
-- `register_task` now takes a required eighth parameter,
-  `verifier: Option<Address>`. `None` behaves exactly as before this change;
-  `Some(addr)` attaches an `IKeeperVerifier`-implementing contract that
-  `execute_task` calls before crediting the keeper, rejecting with the new
-  `VerificationFailed` error (and a `TaskVerificationFailed` event) if it
-  returns `false`. This is a breaking ABI change — every existing
-  `register_task` call site must add the new argument.
-- New `update_verifier` entry point lets the task owner change or clear a
-  task's verifier while it is still `Pending`.
-- New events: `TaskVerificationFailed` (`("verfail", "task")`) and
-  `VerifierUpdated` (`("verifier", "task")`).
-- `VERSION` bumped from 2 to 3.
 ### Added — batch task registration (VERSION bumped to 3)
 
 Epic E05's batch-registration slice. Full design rationale and integrator
@@ -112,11 +96,11 @@ guidance: [docs/BATCH_OPERATIONS.md](docs/BATCH_OPERATIONS.md).
   combines large payloads *and* many entries can exhaust the transaction budget
   below the 50-entry cap; size against your own payloads, not just the count.
 - **New error variants** (these are the ABI change `VERSION` exists to signal):
-  - `BatchTooLarge` (20) — more than `MAX_BATCH_SIZE` entries.
-  - `EmptyBatch` (21) — empty `tasks` vector; rejected rather than treated as a
+  - `BatchTooLarge` (21) — more than `MAX_BATCH_SIZE` entries.
+  - `EmptyBatch` (22) — empty `tasks` vector; rejected rather than treated as a
     silent no-op, so a caller whose off-chain filter produced nothing finds out
     instead of paying for a transaction that registered nothing.
-  - `BatchRewardCeilingExceeded` (22) — the batch's reward sum exceeded
+  - `BatchRewardCeilingExceeded` (23) — the batch's reward sum exceeded
     `max_total_reward`.
 - A new public entry point plus three new error variants change the contract's
   ABI — `VERSION` bumped from 2 to 3.

@@ -45,12 +45,19 @@ pub enum TaskType {
 /// Lifecycle state of a task. Transitions are enforced by each function.
 ///
 /// ```text
-/// PENDING ──claim──▶ CLAIMED ──execute──▶ EXECUTED
-///    │                  │
-///  cancel             expire (deadline passed)
-///    ▼                  ▼
-/// CANCELLED          EXPIRED
+/// PENDING ──claim──▶ CLAIMED ──execute+verify(pass)──▶ EXECUTED
+///    │                  │ ▲
+///  cancel             expire│ execute+verify(reject, retryable)
+///    ▼             (deadline│ (returns to CLAIMED for retry)
+/// CANCELLED          passed)│
+///                       ▼   │
+///                    EXPIRED│
+///                           └──────────────┘
 /// ```
+///
+/// Note: When a verifier rejects an execution attempt, `execute_task` may
+/// return the task to CLAIMED state (retryable failure), distinct from
+/// terminal states like CANCELLED or EXPIRED.
 #[contracttype]
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum TaskStatus {
@@ -77,7 +84,9 @@ pub struct Task {
     pub deadline: u64,
     /// Ledger TTL for this storage entry.
     pub ttl_ledgers: u32,
+    pub verifier: Option<Address>,
     pub status: TaskStatus,
+
     /// Set when a keeper claims the task.
     pub claimer: Option<Address>,
     /// Ledger sequence at claim time — used to enforce the lock window.
