@@ -26,6 +26,23 @@ the address the contract requires authorization from, and the SDK checks that
 locally rather than spending a fee on a transaction that would fail
 `require_auth`.
 
+## Contract-level views
+
+```ts
+await client.admin(); // string | undefined -- undefined if never initialized
+await client.getFeeBps(); // number
+await client.isPaused(); // boolean
+await client.feesAccrued(); // bigint
+await client.rewardTokenAddress(); // string | undefined
+await client.minReward(); // bigint
+await client.version(); // number, with a compatibility check
+## `client.withdrawRewards`
+
+```ts
+const withdrawn: bigint = await client.withdrawRewards({ keeper });
+
+// Or, treating an empty balance as a normal "nothing to do":
+const maybe: bigint = await client.tryWithdrawRewards({ keeper });
 ## `client.extendDeadline`
 
 ```ts
@@ -76,6 +93,12 @@ Every failure is typed, so nothing needs to match on an error message:
 import { KeeperErrorCode, isKeeperError } from "@soroban-keeper-network/sdk";
 
 try {
+  await client.version();
+} catch (error) {
+  if (isKeeperError(error, KeeperErrorCode.NotInitialized)) return;
+  await client.withdrawRewards({ keeper });
+} catch (error) {
+  if (isKeeperError(error, KeeperErrorCode.NoRewardsAvailable)) return;
   await client.extendDeadline({ owner, taskId, newDeadline });
 } catch (error) {
   if (isKeeperError(error, KeeperErrorCode.NotTaskOwner)) return;
@@ -86,6 +109,18 @@ try {
 }
 ```
 
+## Contract compatibility
+
+`SUPPORTED_CONTRACT_VERSIONS` records the contract `VERSION` range this SDK
+release was built against. `client.version()` reads the deployed contract's
+version and warns -- once per client, through the `warn` option -- when it
+falls outside that range; `client.checkContractCompatibility()` returns the
+same comparison without emitting anything, for callers that want to decide for
+themselves. A mismatch warns rather than throwing: contract versions are
+additive, and a client library that refuses to run against a newer contract
+strands every integrator on the day it is upgraded.
+
+Keeping that range accurate on a contract version bump is the SDK versioning
 ## Contract constants
 
 The SDK's copy of the contract's `MAX_PROOF_LEN` exists only to turn a doomed
@@ -116,6 +151,7 @@ values that have been through the real `nativeToScVal`/`scValToNative`.
 | `src/core/` | the caller seam and the shared conversion helpers |
 | `src/methods/` | one module per contract entry point |
 | `src/errors.ts` | `KeeperErrorCode` and the contract-error decoder |
+| `src/constants.ts` | the supported contract `VERSION` range |
 | `src/constants.ts` | the SDK's copy of the contract's bounds |
 Typed TypeScript client for the Soroban Keeper Network `keeper-registry`
 contract (epic E12). This package includes the shared client plumbing

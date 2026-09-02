@@ -5,6 +5,11 @@ contract, for contract-to-contract integrations and native (non-WASM-host)
 tooling that want typed access without going through the TypeScript SDK's
 JS runtime.
 
+**This crate is a scaffold.** It has no contract-specific methods yet — see
+`src/lib.rs`'s module doc comment for what it does establish (workspace
+membership, the RPC client dependency, the module layout) versus what's
+still to come (the actual client methods, mirroring the TypeScript SDK's
+shape as that epic lands).
 Issue #268 filled in the first real client methods: [`KeeperRegistryClient`](src/client.rs)
 (the generic `invoke`/`read` building blocks — simulate → sign → send →
 poll for state-changing calls, simulate-only for reads) and the six
